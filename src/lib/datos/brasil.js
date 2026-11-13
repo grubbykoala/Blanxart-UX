@@ -12,13 +12,13 @@ export default {
 	// Cámara: [longitud, latitud, escala en px por radián]
 	camara: {
 		portada: [-50, -15, 760],
-		origenA: [-40.6, -14.6, 1500],
-		origenB: [-39.9, -14.5, 2200],
-		origenC: [-39.35, -14.75, 2700],
+		origenA: [-40.6, -13.9, 1500],
+		origenB: [-39.9, -14.55, 2500],
+		origenC: [-39.25, -14.8, 3300],
 		general: [-18.5, 18, 290],
 		travesia: 640,
 		llegada: 2400,
-		final: [1.95, 41.25, 2650]
+		final: [2.0, 41.3, 3400]
 	},
 
 	lugares: {
