@@ -14,12 +14,19 @@
 	export let origen;
 
 	// ── Guion: tiempos en "pantallas de scroll" ────────────────────────────────
-	const FIN = 7.8;
-	const DESPLIEGUE = [0.05, 1.0];
-	const CORTES = [0.525, 1.95, 3.0, 3.75, 5.95, 6.9]; // inicio de los pasos 1…6
-	const CAPITULOS = [[0.525, 3.0], [3.0, 5.95], [5.95, FIN]];
-	const ZARPA = 3.85;
-	const ATRACA = 5.9;
+	// Regla del guion: en cada tramo algo tiene que moverse con el dedo. Cuando el
+	// texto descansa, se mueve la cámara; cuando la cámara descansa, pasa el texto.
+	const FIN = 6.8;
+	const ABRE = 0.95; // la portada termina de desplegarse
+	const T_B = 1.85; // la cámara llega a la costa
+	const T_C = 2.3; // …y a la finca; desde aquí se aleja
+	const T_G = 3.1; // vista general del Atlántico
+	const ZARPA = 3.3;
+	const ATRACA = 5.0;
+	const LLEGA = 5.05;
+	const CAPITULOS = [[0.5, 2.28], [2.28, 5.32], [5.32, FIN]];
+	// La cinta de textos: en el tiempo t descansa el bloque n
+	const CINTA = [[ABRE, 1], [1.85, 2], [2.7, 3], [3.35, 4], [ATRACA, 4], [5.65, 5], [6.45, 6]];
 
 	$: tx = origen.textos[$idioma];
 
@@ -43,12 +50,16 @@
 	let enKraft = false;
 	let lista = false;
 	let finalVisible = false;
-	let desplegado = false;
+	let capitulo = 0;
 	let W = 390;
 	let H = 844;
 	let P = 396;
 	let k = 1;
-	let tActual = 0;
+	let paso_px = 360; // distancia entre bloques de la cinta
+	let objetivo = 0; // donde está el dedo
+	let tCam = 0; // reloj de la cámara: sigue al dedo con algo de peso
+	let tTxt = 0; // reloj del texto y las fotos: casi pegado al dedo
+	let sucio = true;
 	let zDespliegue;
 	let zGeneral;
 	let dpr = 1;
@@ -60,8 +71,23 @@
 	let elLogo, elIdiomas, elPortada, gSup, gPanel, gInf, gSello;
 	let mFinca, mRotulo, mDestino, mBarcelona;
 	let elKm, elDia, elAvance, elBarco, elBarras = [];
+	let elVentana, elBloques = [], elFoto1, elFoto2, elTableta;
 
 	const seno = (v) => 0.5 - 0.5 * Math.cos(Math.PI * clamp(v));
+	// Suaviza sin llegar a pararse en los extremos
+	const fluye = (v) => 0.3 * clamp(v) + 0.7 * seno(v);
+	const abre = (t) => 1 - Math.pow(1 - clamp(t / ABRE), 1.6);
+	// Avance de la cinta entre dos bloques: más lento al llegar, nunca quieto
+	const paseo = (v) => v - (0.7 * Math.sin(2 * Math.PI * v)) / (2 * Math.PI);
+	function qDe(t) {
+		if (t <= CINTA[0][0]) return CINTA[0][1];
+		for (let i = 0; i < CINTA.length - 1; i++) {
+			const [t0, q0] = CINTA[i];
+			const [t1, q1] = CINTA[i + 1];
+			if (t <= t1) return q1 === q0 ? q0 : q0 + paseo((t - t0) / (t1 - t0)) * (q1 - q0);
+		}
+		return CINTA[CINTA.length - 1][1];
+	}
 	const mezcla = (a, b, v) => ({ x: lerp(a.x, b.x, v), y: lerp(a.y, b.y, v), s: Math.exp(lerp(Math.log(a.s), Math.log(b.s), v)) });
 	const zoomEn = (z, v) => {
 		const [x, y, w] = z(v);
@@ -83,23 +109,25 @@
 	}
 
 	function camara(t) {
-		if (t <= DESPLIEGUE[0]) return cam.portada;
-		if (t < 1.0) return zoomEn(zDespliegue, seno((t - DESPLIEGUE[0]) / (1 - DESPLIEGUE[0])));
-		if (t < 1.95) return mezcla(cam.origenA, cam.origenB, (t - 1) / 0.95);
-		if (t < 3.0) return mezcla(cam.origenB, cam.origenC, (t - 1.95) / 1.05);
-		if (t < 3.75) return zoomEn(zGeneral, seno((t - 3.0) / 0.75));
-		if (t < 5.95) {
+		if (t < ABRE) {
+			const v = clamp(t / ABRE);
+			return zoomEn(zDespliegue, 0.3 * v + 0.7 * (1 - Math.pow(1 - v, 1.8)));
+		}
+		if (t < T_B) return mezcla(cam.origenA, cam.origenB, (t - ABRE) / (T_B - ABRE));
+		if (t < T_C) return mezcla(cam.origenB, cam.origenC, (t - T_B) / (T_C - T_B));
+		if (t < T_G) return zoomEn(zGeneral, fluye((t - T_C) / (T_G - T_C)));
+		if (t < LLEGA) {
 			const p = ruta.en(uDe(t));
-			const sigue = suave(3.75, 4.35, t);
+			const sigue = suave(T_G, T_G + 0.5, t);
 			const s = zTravesia(t);
-			const mira = sigue * (1 - suave(5.3, 5.95, t));
+			const mira = sigue * (1 - suave(4.5, LLEGA, t));
 			return {
 				x: lerp(cam.general.x, p.x, sigue) + (26 / s) * mira,
 				y: lerp(cam.general.y, p.y, sigue) - (34 / s) * mira,
 				s
 			};
 		}
-		return mezcla(cam.llegada, cam.final, seno((t - 5.95) / (FIN - 5.95)));
+		return mezcla(cam.llegada, cam.final, clamp((t - LLEGA) / (FIN - LLEGA)));
 	}
 
 	function ponLamina(el, L, c, fx, fy, op) {
@@ -128,7 +156,8 @@
 		if (!ctx) return;
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.clearRect(0, 0, W, H);
-		const a = suave(3.1, 3.6, t);
+		const a = suave(2.5, 2.95, t);
+		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.03, LLEGA + 0.07, t));
 		if (a <= 0) return;
 		const X = (p) => fx + (p.x - c.x) * c.s;
 		const Y = (p) => fy + (p.y - c.y) * c.s;
@@ -172,16 +201,16 @@
 			ctx.fillStyle = cobre;
 			ctx.fill();
 			// barco
-			if (t > 3.7 && t < 5.97) {
+			if (verBarco > 0) {
 				const bx = X(barco);
 				const by = Y(barco);
 				ctx.beginPath();
 				ctx.arc(bx, by, 10, 0, 6.2832);
 				ctx.lineWidth = 1;
 				ctx.strokeStyle = cobre;
-				ctx.globalAlpha = 0.7 * a;
+				ctx.globalAlpha = 0.7 * a * verBarco;
 				ctx.stroke();
-				ctx.globalAlpha = a;
+				ctx.globalAlpha = a * verBarco;
 				ctx.beginPath();
 				ctx.arc(bx, by, 4.6, 0, 6.2832);
 				ctx.fillStyle = '#F3E3C6';
@@ -195,18 +224,31 @@
 		zona(borde, H, '#E3C59B', '#E08B63');
 	}
 
-	function pintar(t) {
-		tActual = t;
-		const m = seno((t - DESPLIEGUE[0]) / (DESPLIEGUE[1] - DESPLIEGUE[0]));
+	function ponFoto(el, d, sube, giro, gira) {
+		if (!el) return;
+		const op = 1 - suave(0.25, 0.62, Math.abs(d));
+		if (op <= 0.004) {
+			el.style.visibility = 'hidden';
+			return;
+		}
+		el.style.visibility = 'visible';
+		el.style.opacity = op;
+		el.style.transform = `translate3d(0,${d * sube}px,0) rotate(${giro + d * gira}deg)`;
+	}
+
+	/** t: reloj de la cámara · tt: reloj del texto, las fotos y el panel */
+	function pintar(t, tt) {
+		const mMapa = abre(t);
+		const m = abre(tt);
 		const c = camara(t);
 		const fx = W / 2;
 		const fyMapa = (H - P) / 2 + 26;
-		const fy = lerp(H * 0.47, fyMapa, m);
+		const fy = lerp(H * 0.47, fyMapa, mMapa);
 		const u = uDe(t);
 
 		// Láminas del mapa
-		ponLamina(elA, laminas.atlantico, c, fx, fy, lerp(0.34, 0.92, m) * (1 - suave(950, 1350, c.s)));
-		ponLamina(elB, laminas.bahia, c, fx, fy, t < 3.8 ? 0.95 * suave(950, 1350, c.s) : 0);
+		ponLamina(elA, laminas.atlantico, c, fx, fy, lerp(0.34, 0.92, mMapa) * (1 - suave(950, 1350, c.s)));
+		ponLamina(elB, laminas.bahia, c, fx, fy, t < T_G + 0.05 ? 0.95 * suave(950, 1350, c.s) : 0);
 
 		// Papel kraft: entra desde el norte al cruzar el Estrecho
 		const w = t >= ATRACA ? 1 : suave(uEstrecho - 0.17, uEstrecho + 0.05, u);
@@ -228,11 +270,11 @@
 		pintarRuta(t, c, fx, fy, u, borde);
 
 		// Marcas ancladas al mapa
-		const enOrigen = suave(0.72, 0.98, t) * (1 - suave(3.02, 3.25, t));
+		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.35, 2.6, t));
 		ponMarca(mFinca, lugar.finca, c, fx, fy, enOrigen);
-		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.6, 2.95, t)));
-		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(3.3, 3.7, t));
-		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(5.7, 5.95, t));
+		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(1.9, 2.2, t)));
+		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.7, 3.05, t));
+		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(4.8, LLEGA, t));
 
 		// Portada → panel: el sello se despliega y baja a su sitio
 		const x0 = W / 2 - 153 * k;
@@ -244,10 +286,11 @@
 		const encaje = `translate3d(${px}px,${py - (H - P)}px,0) scale(${pw / W},${ph / (P + 24)})`;
 		elPanelFondo.style.transform = encaje;
 		elPanel.style.transform = m < 1 ? encaje : '';
-		const abierto = t >= 0.93;
-		if (abierto !== desplegado) desplegado = abierto;
+		const verPanel = suave(0.2, 0.4, tt);
+		elPanel.style.opacity = verPanel;
+		elPanel.style.visibility = verPanel > 0.004 ? 'visible' : 'hidden';
 
-		const fuera = 1 - suave(0.12, 0.5, m);
+		const fuera = 1 - suave(0.1, 0.45, m);
 		if (fuera <= 0.004) {
 			elPortada.style.visibility = 'hidden';
 		} else {
@@ -268,23 +311,54 @@
 		const lx = lerp(W / 2 - 88 * k, 24, m) - 24;
 		const ly = lerp(H / 2 - 368 * k, 26, m) - 26;
 		elLogo.style.transform = `translate3d(${lx}px,${ly}px,0) scale(${ls})`;
-		elVelo.style.opacity = m;
+		elVelo.style.opacity = mMapa;
 		const verIdiomas = suave(0.7, 1, m);
 		elIdiomas.style.opacity = verIdiomas;
 		elIdiomas.style.pointerEvents = verIdiomas > 0.5 ? 'auto' : 'none';
 
-		// Paso actual
-		let n = 0;
-		while (n < CORTES.length && t >= CORTES[n]) n++;
+		// La cinta de textos se desliza con el dedo
+		const q = qDe(tt);
+		for (let i = 1; i <= 6; i++) {
+			const el = elBloques[i];
+			if (!el) continue;
+			const d = i - q;
+			if (Math.abs(d) >= 1.02) {
+				el.style.visibility = 'hidden';
+				continue;
+			}
+			el.style.visibility = 'visible';
+			el.style.transform = `translate3d(0,${d * paso_px + (i === 1 ? (1 - m) * 46 : 0)}px,0)`;
+		}
+		// El primer bloque nace dentro del sello mientras se despliega
+		if (elBloques[1]) elBloques[1].style.opacity = m < 1 ? suave(0.32, 0.7, m) : 1;
+		const n = Math.round(q);
 		if (n !== paso) paso = n;
+		const cap = tt < CAPITULOS[1][0] ? 0 : tt < CAPITULOS[2][0] ? 1 : 2;
+		if (cap !== capitulo) capitulo = cap;
+
+		// Fotos y tableta: suben con su texto desde detrás del panel
+		ponFoto(elFoto1, tt < ABRE ? 0.62 * (1 - suave(0.5, ABRE, tt)) : 1 - q, 150, -5, 7);
+		ponFoto(elFoto2, 2 - q, 150, 4, -7);
+		if (elTableta) {
+			const d = 6 - q;
+			const op = 1 - suave(0.35, 0.8, d);
+			if (op <= 0.004) {
+				elTableta.style.visibility = 'hidden';
+			} else {
+				const flota = clamp((tt - 6.45) / (FIN - 6.45));
+				elTableta.style.visibility = 'visible';
+				elTableta.style.opacity = op;
+				elTableta.style.transform = `translate3d(0,${d * 170 - flota * 22}px,0) rotate(${-7 + d * 16 + flota * 2.5}deg)`;
+			}
+		}
 
 		// Progreso por capítulo
 		for (let i = 0; i < 3; i++) {
-			if (elBarras[i]) elBarras[i].style.transform = `scaleX(${clamp((t - CAPITULOS[i][0]) / (CAPITULOS[i][1] - CAPITULOS[i][0]))})`;
+			if (elBarras[i]) elBarras[i].style.transform = `scaleX(${clamp((tt - CAPITULOS[i][0]) / (CAPITULOS[i][1] - CAPITULOS[i][0]))})`;
 		}
 
 		// Cuaderno de travesía
-		if (n === 4) {
+		if (Math.abs(4 - q) < 1.02) {
 			const b = ruta.en(u);
 			const lon = grados(b.x);
 			const lat = latDe(b.y);
@@ -311,19 +385,20 @@
 		const y1 = ruta.pts[ruta.pts.length - 1].y;
 		cam.general.s = Math.min(origen.camara.general[2], (H - P - 124) / Math.abs(y0 - y1));
 		cam.general.y = (y0 + y1) / 2 + 14 / cam.general.s;
-		ZT = [[3.75, Math.log(cam.general.s)], [4.35, Math.log(origen.camara.travesia)], [5.0, Math.log(origen.camara.travesia)], [5.5, Math.log(1100)], [5.95, Math.log(origen.camara.llegada)]];
+		ZT = [[T_G, Math.log(cam.general.s)], [T_G + 0.5, Math.log(origen.camara.travesia)], [4.2, Math.log(origen.camara.travesia)], [4.65, Math.log(1100)], [LLEGA, Math.log(origen.camara.llegada)]];
+		paso_px = elVentana.clientHeight + 28;
 		zDespliegue = interpolateZoom([cam.portada.x, cam.portada.y, W / cam.portada.s], [cam.origenA.x, cam.origenA.y, W / cam.origenA.s]);
 		zGeneral = interpolateZoom([cam.origenC.x, cam.origenC.y, W / cam.origenC.s], [cam.general.x, cam.general.y, W / cam.general.s]);
-		pintar(tActual);
+		pintar(tCam, tTxt);
 	}
 
-	// Transiciones de los textos: se disparan al cruzar el umbral, no van atadas al dedo
+	// Solo el rótulo del hito cambia de golpe; todo lo demás va atado al dedo
 	function sube(node, { delay = 0 }) {
-		return { delay, duration: 520, easing: cubicOut, css: (v) => `opacity:${v};transform:translate3d(0,${(1 - v) * 16}px,0)` };
+		return { delay, duration: 420, easing: cubicOut, css: (v) => `opacity:${v};transform:translate3d(0,${(1 - v) * 12}px,0)` };
 	}
-	function foto(node, { giro = 0 }) {
-		return { duration: 620, easing: cubicOut, css: (v) => `opacity:${Math.min(1, v * 1.6)};transform:translate3d(0,${(1 - v) * 26}px,0) rotate(${giro + (1 - v) * 7}deg) scale(${0.9 + 0.1 * v})` };
-	}
+
+	// Al cambiar de idioma hay que repintar los textos que se escriben a mano
+	$: if ($idioma) sucio = true;
 
 	onMount(() => {
 		gsap.registerPlugin(ScrollTrigger);
@@ -334,9 +409,29 @@
 		ro.observe(elEscenario);
 
 		const calma = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		const reloj = { t: 0 };
-		const anim = gsap.fromTo(reloj, { t: 0 }, { t: FIN, duration: FIN, ease: 'none', paused: true, onUpdate: () => pintar(reloj.t) });
-		const st = ScrollTrigger.create({ trigger: elPista, start: 'top top', end: 'bottom bottom', scrub: calma ? true : 0.75, animation: anim });
+		// Dos relojes persiguen al dedo: el texto casi al instante, la cámara con algo de peso.
+		// Así cada gesto mueve algo enseguida y el mapa no da tirones.
+		let primero = true;
+		const st = ScrollTrigger.create({
+			trigger: elPista,
+			start: 'top top',
+			end: 'bottom bottom',
+			onUpdate: (self) => (objetivo = self.progress * FIN)
+		});
+		const tic = (_, ms) => {
+			const dc = objetivo - tCam;
+			const dx = objetivo - tTxt;
+			if (!sucio && dc === 0 && dx === 0) return;
+			const dt = Math.min(ms || 16.7, 64) / 1000;
+			const directo = calma || primero;
+			tCam = directo || Math.abs(dc) < 0.0005 ? objetivo : tCam + dc * (1 - Math.exp(-dt / 0.15));
+			tTxt = directo || Math.abs(dx) < 0.0005 ? objetivo : tTxt + dx * (1 - Math.exp(-dt / 0.04));
+			primero = false;
+			sucio = false;
+			pintar(tCam, tTxt);
+		};
+		objetivo = st.progress * FIN;
+		gsap.ticker.add(tic);
 		const stFinal = ScrollTrigger.create({
 			trigger: elPista,
 			start: 'bottom top',
@@ -360,13 +455,11 @@
 			st.kill();
 			stFinal.kill();
 			stVer.kill();
-			anim.kill();
+			gsap.ticker.remove(tic);
 		};
 	});
 
-	$: capitulo = paso <= 2 ? 0 : paso <= 4 ? 1 : 2;
 	$: romano = ['I', 'II', 'III'][capitulo];
-	$: datosPaso = paso > 0 && paso !== 4 ? tx.pasos[paso] : null;
 </script>
 
 <svelte:head>
@@ -401,21 +494,15 @@
 	<div class="marca" bind:this={mDestino}><span class="destino" class:llegado={paso >= 5}><i></i></span></div>
 	<div class="marca" bind:this={mBarcelona}><span class="ciudad">Barcelona</span></div>
 
-	<!-- Fotos: aparecen con su paso -->
-	{#if paso === 1 && desplegado}
-		<img class="foto foto-izq" src="{base}{origen.fotos.mazorcas}" alt="Mazorcas de cacao en el árbol" in:foto={{ giro: -5 }} out:fade={{ duration: 220 }} style="--giro:-5deg" />
-	{/if}
-	{#if paso === 2}
-		<img class="foto foto-der" src="{base}{origen.fotos.granos}" alt="Granos de cacao secos" in:foto={{ giro: 4 }} out:fade={{ duration: 220 }} style="--giro:4deg" />
-	{/if}
-	{#if paso === 6}
-		<img class="tableta" src="{base}{origen.fotos.tableta}" alt="Tableta Blanxart Origins {tx.portada.nombre} {origen.porcentaje} %" in:foto={{ giro: -7 }} out:fade={{ duration: 220 }} style="--giro:-7deg" />
-	{/if}
+	<!-- Fotos: suben con su texto, atadas al dedo -->
+	<img class="foto foto-izq" bind:this={elFoto1} src="{base}{origen.fotos.mazorcas}" alt="Mazorcas de cacao en el árbol" />
+	<img class="foto foto-der" bind:this={elFoto2} src="{base}{origen.fotos.granos}" alt="Granos de cacao secos" />
+	<img class="tableta" bind:this={elTableta} src="{base}{origen.fotos.tableta}" alt="Tableta Blanxart Origins {tx.portada.nombre} {origen.porcentaje} %" />
 
 	<!-- Panel: el sello del envoltorio. En la portada va centrado; al deslizar baja y se abre. -->
 	<div class="panel-fondo" bind:this={elPanelFondo}></div>
 
-	<section class="panel" bind:this={elPanel} class:activo={paso > 0} aria-live="polite">
+	<section class="panel" bind:this={elPanel}>
 		<div class="panel-cabeza">
 			<div class="capitulo">
 				{#key capitulo}
@@ -427,41 +514,42 @@
 			</div>
 		</div>
 
-		<div class="panel-cuerpo">
-			{#key `${paso}-${$idioma}`}
-				{#if datosPaso}
-					<div class="paso" out:fade|global={{ duration: 140 }}>
-						<h2 in:sube|global={{ delay: 60 }}>{datosPaso.titulo[0]} <em>{datosPaso.titulo[1]}</em></h2>
-						<p in:sube|global={{ delay: 130 }}>{datosPaso.cuerpo}</p>
-						<dl in:sube|global={{ delay: 200 }}>
-							{#each datosPaso.datos as [nombre, valor]}
-								<div><dt>{nombre}</dt><dd>{valor.replace('{km}', miles(totalKm, $idioma))}</dd></div>
-							{/each}
-						</dl>
-					</div>
-				{:else if paso === 4}
-					<div class="paso travesia" out:fade|global={{ duration: 140 }}>
-						<div class="cuenta" in:sube|global={{ delay: 60 }}>
+		<!-- La cinta: los seis bloques están siempre montados y se deslizan con el dedo -->
+		<div class="panel-cuerpo" bind:this={elVentana}>
+			{#each [1, 2, 3, 4, 5, 6] as i}
+				{#if i === 4}
+					<div class="paso travesia" bind:this={elBloques[i]}>
+						<div class="cuenta">
 							<span class="km" bind:this={elKm}>0</span>
 							<span class="km-unidad">{tx.travesia.recorridos}</span>
 						</div>
-						<div class="hito" in:sube|global={{ delay: 130 }}>
-							{#key hito}
-								<span in:sube|global={{ delay: 80 }} out:fade|global={{ duration: 120 }}>{tx.travesia.hitos[hito]}</span>
+						<div class="hito">
+							{#key `${hito}-${$idioma}`}
+								<span in:sube|global={{ delay: 60 }} out:fade|global={{ duration: 120 }}>{tx.travesia.hitos[hito]}</span>
 							{/key}
 						</div>
-						<div class="derrota" in:sube|global={{ delay: 180 }} aria-hidden="true">
+						<div class="derrota" aria-hidden="true">
 							<span>{tx.pasos[3].datos[0][1]}</span>
 							<span class="linea"><i bind:this={elAvance}></i><b bind:this={elBarco}></b></span>
 							<span>{tx.pasos[3].datos[1][1]}</span>
 						</div>
-						<dl in:sube|global={{ delay: 230 }}>
+						<dl>
 							<div><dt>{tx.pasos[3].datos[2][0]}</dt><dd>{miles(totalKm, $idioma)} km</dd></div>
 							<div><dt>{tx.travesia.diaEtq}</dt><dd bind:this={elDia}>&nbsp;</dd></div>
 						</dl>
 					</div>
+				{:else}
+					<div class="paso" bind:this={elBloques[i]}>
+						<h2>{tx.pasos[i].titulo[0]} <em>{tx.pasos[i].titulo[1]}</em></h2>
+						<p>{tx.pasos[i].cuerpo}</p>
+						<dl>
+							{#each tx.pasos[i].datos as [nombre, valor]}
+								<div><dt>{nombre}</dt><dd>{valor.replace('{km}', miles(totalKm, $idioma))}</dd></div>
+							{/each}
+						</dl>
+					</div>
 				{/if}
-			{/key}
+			{/each}
 		</div>
 	</section>
 
@@ -715,7 +803,8 @@
 	.tableta {
 		position: absolute;
 		z-index: 2;
-		transform: rotate(var(--giro));
+		visibility: hidden;
+		will-change: transform, opacity;
 	}
 	.foto {
 		--alto: min(124px, calc((100svh - var(--P)) * 0.33));
@@ -734,10 +823,10 @@
 	}
 	.tableta {
 		left: 26px;
-		bottom: calc(var(--P) - 6px);
+		bottom: calc(var(--P) + 4px);
 		width: min(104px, calc((100svh - var(--P)) * 0.29));
 		height: auto;
-		z-index: 6;
+		z-index: 3;
 		filter: drop-shadow(0 14px 16px rgba(42, 30, 22, 0.45));
 	}
 
@@ -779,12 +868,6 @@
 		flex-direction: column;
 		opacity: 0;
 		visibility: hidden;
-		transition: opacity 0.35s ease, visibility 0s linear 0.35s;
-	}
-	.panel.activo {
-		opacity: 1;
-		visibility: visible;
-		transition: opacity 0.5s ease, visibility 0s;
 	}
 	.panel-cabeza {
 		display: flex;
@@ -822,16 +905,26 @@
 		transform-origin: 0 50%;
 	}
 
+	/* Ventana de la cinta: sangra 20 px por abajo y funde los bordes */
 	.panel-cuerpo {
+		position: relative;
 		flex: 1;
-		display: grid;
 		min-height: 0;
+		margin: 0 -28px -20px;
+		overflow: hidden;
+		-webkit-mask: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 18px), transparent 100%);
+		mask: linear-gradient(180deg, transparent 0, #000 16px, #000 calc(100% - 18px), transparent 100%);
 	}
 	.paso {
-		grid-area: 1 / 1;
+		position: absolute;
+		left: 28px;
+		right: 28px;
+		top: 0;
+		height: calc(100% - 20px);
 		display: flex;
 		flex-direction: column;
-		min-height: 0;
+		visibility: hidden;
+		will-change: transform;
 	}
 	h2 {
 		margin: clamp(12px, 2svh, 18px) 0 0;
