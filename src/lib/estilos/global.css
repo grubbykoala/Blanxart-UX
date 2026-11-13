@@ -1,0 +1,25 @@
+:root {
+	--serif: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+	--sans: 'Montserrat Variable', 'Helvetica Neue', Arial, sans-serif;
+	color-scheme: dark;
+}
+
+html {
+	background: #151d2c;
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+	overscroll-behavior-y: none;
+}
+
+body {
+	margin: 0;
+	background: #151d2c;
+	font-family: var(--sans);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	-webkit-tap-highlight-color: transparent;
+}
+
+img {
+	display: block;
+}
