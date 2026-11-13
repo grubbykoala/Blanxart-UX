@@ -9,16 +9,15 @@ export default {
 	porcentaje: 76,
 	diasDeMar: 18,
 
-	// Cámara: [longitud, latitud, escala en px por radián]
+	// [lon, lat, escala]. La escala son píxeles por radián; el zoom pasa por estos valores en una sola curva.
 	camara: {
 		portada: [-50, -15, 760],
-		origenA: [-40.6, -13.9, 1500],
-		origenB: [-39.9, -14.55, 2500],
-		origenC: [-39.25, -14.8, 3300],
+		origenA: [-40.9, -12.6, 1500],
+		origenC: [-39.3, -14.75, 2200],
 		general: [-18.5, 18, 290],
-		travesia: 640,
-		llegada: 2400,
-		final: [2.0, 41.3, 3400]
+		llegada: 1900,
+		asentada: 2450,
+		final: [2.0, 41.3, 3000]
 	},
 
 	lugares: {

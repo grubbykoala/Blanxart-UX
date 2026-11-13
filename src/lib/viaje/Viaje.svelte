@@ -5,7 +5,6 @@
 	import { base } from '$app/paths';
 	import { gsap } from 'gsap';
 	import { ScrollTrigger } from 'gsap/ScrollTrigger';
-	import { interpolateZoom } from 'd3-interpolate';
 	import laminas from '$lib/mapa/laminas.json';
 	import { mundo, construirRuta, clamp, lerp, suave } from '$lib/mapa/geo.js';
 	import { idioma, IDIOMAS, miles } from './idioma.js';
@@ -18,9 +17,10 @@
 	// texto descansa, se mueve la cámara; cuando la cámara descansa, pasa el texto.
 	const FIN = 6.8;
 	const ABRE = 0.95; // la portada termina de desplegarse
-	const T_B = 1.85; // la cámara llega a la costa
-	const T_C = 2.3; // …y a la finca; desde aquí se aleja
-	const T_G = 3.1; // vista general del Atlántico
+	// El zoom dibuja un solo arco: se acerca al origen, se aleja una vez para
+	// enseñar el Atlántico y vuelve a acercarse hasta Barcelona. Sin vaivenes.
+	const T_C = 2.25; // punto más cercano a la finca; desde aquí se aleja
+	const T_G = 3.4; // vista general del Atlántico; desde aquí solo se acerca
 	const ZARPA = 3.3;
 	const ATRACA = 5.0;
 	const LLEGA = 5.05;
@@ -39,7 +39,7 @@
 	const lugar = Object.fromEntries(Object.entries(origen.lugares).map(([k, [lon, lat]]) => [k, mundo(lon, lat)]));
 	const ruta = construirRuta(origen.ruta);
 	const totalKm = Math.round(ruta.totalKm / 5) * 5;
-	cam.llegada = { ...ruta.en(1), s: origen.camara.llegada };
+	cam.llegada = { ...ruta.en(1) };
 	const grados = (r) => (r * 180) / Math.PI;
 	const latDe = (y) => grados(2 * Math.atan(Math.exp(-y)) - Math.PI / 2);
 	const uEstrecho = ruta.uDonde((x, y) => grados(x) > -6.3 && latDe(y) > 35);
@@ -60,8 +60,10 @@
 	let tCam = 0; // reloj de la cámara: sigue al dedo con algo de peso
 	let tTxt = 0; // reloj del texto y las fotos: casi pegado al dedo
 	let sucio = true;
-	let zDespliegue;
-	let zGeneral;
+	let zoomLog = () => Math.log(760); // t → ln(escala): una sola curva suave para todo el viaje
+	let rAbre = () => 0;
+	let rOrigen = () => 0;
+	let rSale = () => 0;
 	let dpr = 1;
 	let ctx;
 
@@ -88,38 +90,73 @@
 		}
 		return CINTA[CINTA.length - 1][1];
 	}
-	const mezcla = (a, b, v) => ({ x: lerp(a.x, b.x, v), y: lerp(a.y, b.y, v), s: Math.exp(lerp(Math.log(a.s), Math.log(b.s), v)) });
-	const zoomEn = (z, v) => {
-		const [x, y, w] = z(v);
-		return { x, y, s: W / w };
-	};
+
+	/** Curva cúbica monótona (Fritsch-Carlson): pasa por los puntos sin rebotes ni esquinas. */
+	function curvaMonotona(pts) {
+		const n = pts.length;
+		const h = [];
+		const d = [];
+		for (let i = 0; i < n - 1; i++) {
+			h[i] = pts[i + 1][0] - pts[i][0];
+			d[i] = (pts[i + 1][1] - pts[i][1]) / h[i];
+		}
+		const extremo = (h0, h1, d0, d1) => {
+			const m = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1);
+			if (m * d0 <= 0) return 0;
+			if (d0 * d1 <= 0 && Math.abs(m) > 3 * Math.abs(d0)) return 3 * d0;
+			return m;
+		};
+		const m = [extremo(h[0], h[1], d[0], d[1])];
+		for (let i = 1; i < n - 1; i++) {
+			if (d[i - 1] * d[i] <= 0) m[i] = 0;
+			else {
+				const w1 = 2 * h[i] + h[i - 1];
+				const w2 = h[i] + 2 * h[i - 1];
+				m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+			}
+		}
+		m[n - 1] = extremo(h[n - 2], h[n - 3], d[n - 2], d[n - 3]);
+		return (t) => {
+			if (t <= pts[0][0]) return pts[0][1];
+			if (t >= pts[n - 1][0]) return pts[n - 1][1];
+			let i = 0;
+			while (t > pts[i + 1][0]) i++;
+			const v = (t - pts[i][0]) / h[i];
+			const v2 = v * v;
+			const v3 = v2 * v;
+			return (2 * v3 - 3 * v2 + 1) * pts[i][1] + (v3 - 2 * v2 + v) * h[i] * m[i] + (3 * v2 - 2 * v3) * pts[i + 1][1] + (v3 - v2) * h[i] * m[i + 1];
+		};
+	}
+
+	/** Fracción de un desplazamiento entre t0 y t1 para que el mapa se deslice a velocidad constante en pantalla, sea cual sea el zoom. */
+	function reparto(t0, t1) {
+		const N = 48;
+		const ac = [0];
+		for (let i = 1; i <= N; i++) ac[i] = ac[i - 1] + Math.exp(-zoomLog(t0 + ((i - 0.5) / N) * (t1 - t0)));
+		return (t) => {
+			const v = clamp((t - t0) / (t1 - t0)) * N;
+			const i = Math.min(N - 1, Math.floor(v));
+			return (ac[i] + (ac[i + 1] - ac[i]) * (v - i)) / ac[N];
+		};
+	}
+	const entre = (a, b, f, s) => ({ x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), s });
 
 	function uDe(t) {
 		const v = clamp((t - ZARPA) / (ATRACA - ZARPA));
 		return 0.35 * v + 0.65 * v * v * (3 - 2 * v);
 	}
 
-	// Zoom durante la travesía: vista general → seguimiento → entrada al Mediterráneo
-	let ZT = [];
-	function zTravesia(t) {
-		for (let i = 0; i < ZT.length - 1; i++) {
-			if (t <= ZT[i + 1][0]) return Math.exp(lerp(ZT[i][1], ZT[i + 1][1], suave(ZT[i][0], ZT[i + 1][0], t)));
-		}
-		return Math.exp(ZT[ZT.length - 1][1]);
-	}
-
 	function camara(t) {
+		const s = Math.exp(zoomLog(t));
 		if (t < ABRE) {
-			const v = clamp(t / ABRE);
-			return zoomEn(zDespliegue, 0.3 * v + 0.7 * (1 - Math.pow(1 - v, 1.8)));
+			const v = rAbre(t);
+			return entre(cam.portada, cam.origenA, 0.3 * v + 0.7 * (1 - Math.pow(1 - v, 1.8)), s);
 		}
-		if (t < T_B) return mezcla(cam.origenA, cam.origenB, (t - ABRE) / (T_B - ABRE));
-		if (t < T_C) return mezcla(cam.origenB, cam.origenC, (t - T_B) / (T_C - T_B));
-		if (t < T_G) return zoomEn(zGeneral, fluye((t - T_C) / (T_G - T_C)));
+		if (t < T_C) return entre(cam.origenA, cam.origenC, rOrigen(t), s);
+		if (t < T_G) return entre(cam.origenC, cam.general, fluye(rSale(t)), s);
 		if (t < LLEGA) {
 			const p = ruta.en(uDe(t));
-			const sigue = suave(T_G, T_G + 0.5, t);
-			const s = zTravesia(t);
+			const sigue = suave(T_G, T_G + 0.55, t);
 			const mira = sigue * (1 - suave(4.5, LLEGA, t));
 			return {
 				x: lerp(cam.general.x, p.x, sigue) + (26 / s) * mira,
@@ -127,7 +164,7 @@
 				s
 			};
 		}
-		return mezcla(cam.llegada, cam.final, clamp((t - LLEGA) / (FIN - LLEGA)));
+		return entre(cam.llegada, cam.final, clamp((t - LLEGA) / (FIN - LLEGA)), s);
 	}
 
 	function ponLamina(el, L, c, fx, fy, op) {
@@ -156,7 +193,7 @@
 		if (!ctx) return;
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.clearRect(0, 0, W, H);
-		const a = suave(2.5, 2.95, t);
+		const a = suave(2.7, 3.15, t);
 		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.03, LLEGA + 0.07, t));
 		if (a <= 0) return;
 		const X = (p) => fx + (p.x - c.x) * c.s;
@@ -247,8 +284,8 @@
 		const u = uDe(t);
 
 		// Láminas del mapa
-		ponLamina(elA, laminas.atlantico, c, fx, fy, lerp(0.34, 0.92, mMapa) * (1 - suave(950, 1350, c.s)));
-		ponLamina(elB, laminas.bahia, c, fx, fy, t < T_G + 0.05 ? 0.95 * suave(950, 1350, c.s) : 0);
+		ponLamina(elA, laminas.atlantico, c, fx, fy, lerp(0.34, 0.92, mMapa) * (t < T_G ? 1 - suave(950, 1350, c.s) : 1));
+		ponLamina(elB, laminas.bahia, c, fx, fy, t < T_G ? 0.95 * suave(950, 1350, c.s) : 0);
 
 		// Papel kraft: entra desde el norte al cruzar el Estrecho
 		const w = t >= ATRACA ? 1 : suave(uEstrecho - 0.17, uEstrecho + 0.05, u);
@@ -270,10 +307,10 @@
 		pintarRuta(t, c, fx, fy, u, borde);
 
 		// Marcas ancladas al mapa
-		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.35, 2.6, t));
+		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.45, 2.75, t));
 		ponMarca(mFinca, lugar.finca, c, fx, fy, enOrigen);
-		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(1.9, 2.2, t)));
-		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.7, 3.05, t));
+		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.2, 2.5, t)));
+		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.9, 3.3, t));
 		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(4.8, LLEGA, t));
 
 		// Portada → panel: el sello se despliega y baja a su sitio
@@ -385,10 +422,14 @@
 		const y1 = ruta.pts[ruta.pts.length - 1].y;
 		cam.general.s = Math.min(origen.camara.general[2], (H - P - 124) / Math.abs(y0 - y1));
 		cam.general.y = (y0 + y1) / 2 + 14 / cam.general.s;
-		ZT = [[T_G, Math.log(cam.general.s)], [T_G + 0.5, Math.log(origen.camara.travesia)], [4.2, Math.log(origen.camara.travesia)], [4.65, Math.log(1100)], [LLEGA, Math.log(origen.camara.llegada)]];
+		const z = origen.camara;
+		zoomLog = curvaMonotona(
+			[[0, z.portada[2]], [ABRE, z.origenA[2]], [T_C, z.origenC[2]], [T_G, cam.general.s], [LLEGA, z.llegada], [5.7, z.asentada], [FIN, z.final[2]]].map(([t, s]) => [t, Math.log(s)])
+		);
+		rAbre = reparto(0, ABRE);
+		rOrigen = reparto(ABRE, T_C);
+		rSale = reparto(T_C, T_G);
 		paso_px = elVentana.clientHeight + 28;
-		zDespliegue = interpolateZoom([cam.portada.x, cam.portada.y, W / cam.portada.s], [cam.origenA.x, cam.origenA.y, W / cam.origenA.s]);
-		zGeneral = interpolateZoom([cam.origenC.x, cam.origenC.y, W / cam.origenC.s], [cam.general.x, cam.general.y, W / cam.general.s]);
 		pintar(tCam, tTxt);
 	}
 
