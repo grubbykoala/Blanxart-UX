@@ -33,7 +33,7 @@
 	// ── Geografía ──────────────────────────────────────────────────────────────
 	const cam = Object.fromEntries(
 		Object.entries(origen.camara)
-			.filter(([, v]) => Array.isArray(v))
+			.filter(([k, v]) => Array.isArray(v) && k !== 'inclinacion')
 			.map(([k, [lon, lat, s]]) => [k, { ...mundo(lon, lat), s }])
 	);
 	const lugar = Object.fromEntries(Object.entries(origen.lugares).map(([k, [lon, lat]]) => [k, mundo(lon, lat)]));
@@ -64,12 +64,17 @@
 	let rAbre = () => 0;
 	let rOrigen = () => 0;
 	let rSale = () => 0;
+	// Perspectiva: el mapa se inclina al acercarse al origen y al destino
+	const FUGA = 760; // distancia del ojo al papel, en px
+	const INCL = curvaInclinacion();
+	let pSen = 0;
+	let pCos = 1;
 	let dpr = 1;
 	let ctx;
 
 	// ── Elementos ──────────────────────────────────────────────────────────────
 	let elPista, elEscenario, elPanel, elPanelFondo, elCanvas;
-	let elA, elB, elC, elKraft, elKraftDentro, elCostura, elVelo;
+	let elA, elB, elC, elKraft, elKraftDentro, elCostura, elVelo, elBruma;
 	let elLogo, elIdiomas, elPortada, gSup, gPanel, gInf, gSello;
 	let mFinca, mRotulo, mDestino, mBarcelona;
 	let elKm, elDia, elAvance, elBarco, elBarras = [];
@@ -128,6 +133,12 @@
 		};
 	}
 
+	/** Grados de inclinación del mapa en cada momento: se tumba al acercarse y se endereza al alejarse. */
+	function curvaInclinacion() {
+		const g = origen.camara.inclinacion;
+		return curvaMonotona([[0, 0], [ABRE, g[0]], [T_C, g[1]], [3.0, 0], [4.7, 0], [5.3, g[2]], [5.9, g[3]], [FIN, g[4]]]);
+	}
+
 	/** Fracción de un desplazamiento entre t0 y t1 para que el mapa se deslice a velocidad constante en pantalla, sea cual sea el zoom. */
 	function reparto(t0, t1) {
 		const N = 48;
@@ -167,7 +178,7 @@
 		return entre(cam.llegada, cam.final, clamp((t - LLEGA) / (FIN - LLEGA)), s);
 	}
 
-	function ponLamina(el, L, c, fx, fy, op) {
+	function ponLamina(el, L, c, fx, fy, op, incl) {
 		if (!el) return;
 		if (op <= 0.004) {
 			el.style.visibility = 'hidden';
@@ -175,18 +186,34 @@
 		}
 		el.style.visibility = 'visible';
 		el.style.opacity = op;
-		el.style.transform = `translate3d(${fx - (c.x - L.x0) * c.s}px,${fy - (c.y - L.y0) * c.s}px,0) scale(${c.s / L.d})`;
+		const tx = fx - (c.x - L.x0) * c.s;
+		const ty = fy - (c.y - L.y0) * c.s;
+		el.style.transform =
+			incl > 0.05
+				? `translate3d(${fx}px,${fy}px,0) perspective(${FUGA}px) rotateX(${incl}deg) translate3d(${tx - fx}px,${ty - fy}px,0) scale(${c.s / L.d})`
+				: `translate3d(${tx}px,${ty}px,0) scale(${c.s / L.d})`;
 	}
 
-	function ponMarca(el, p, c, fx, fy, op) {
+	/** Del papel inclinado a la pantalla: dx, dy son px sobre el papel medidos desde el punto de mira. */
+	function escalaEn(dy) {
+		return FUGA / Math.max(60, FUGA - dy * pSen);
+	}
+
+	function ponMarca(el, p, c, fx, fy, op, alto = 0) {
 		if (!el) return;
 		if (op <= 0.004) {
 			el.style.visibility = 'hidden';
 			return;
 		}
+		const dy = (p.y - c.y) * c.s;
+		const e = escalaEn(dy);
 		el.style.visibility = 'visible';
 		el.style.opacity = op;
-		el.style.transform = `translate3d(${fx + (p.x - c.x) * c.s}px,${fy + (p.y - c.y) * c.s}px,0)`;
+		el.style.transform = `translate3d(${fx + (p.x - c.x) * c.s * e}px,${fy + dy * pCos * e}px,0)`;
+		// Con el mapa tumbado, la marca se levanta del papel sobre un tallo
+		el.style.setProperty('--alza', `${-alto * pSen * e}px`);
+		el.style.setProperty('--aplasta', pCos);
+		el.style.setProperty('--sombra', Math.min(1, pSen * 2.2));
 	}
 
 	function pintarRuta(t, c, fx, fy, u, borde) {
@@ -196,8 +223,11 @@
 		const a = suave(2.7, 3.15, t);
 		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.03, LLEGA + 0.07, t));
 		if (a <= 0) return;
-		const X = (p) => fx + (p.x - c.x) * c.s;
-		const Y = (p) => fy + (p.y - c.y) * c.s;
+		const X = (p) => fx + (p.x - c.x) * c.s * escalaEn((p.y - c.y) * c.s);
+		const Y = (p) => {
+			const dy = (p.y - c.y) * c.s;
+			return fy + dy * pCos * escalaEn(dy);
+		};
 		const pts = ruta.pts;
 		const barco = ruta.en(u);
 
@@ -280,15 +310,22 @@
 		const c = camara(t);
 		const fx = W / 2;
 		const fyMapa = (H - P) / 2 + 26;
-		const fy = lerp(H * 0.47, fyMapa, mMapa);
 		const u = uDe(t);
 
-		// Láminas del mapa
-		ponLamina(elA, laminas.atlantico, c, fx, fy, lerp(0.34, 0.92, mMapa) * (t < T_G ? 1 - suave(950, 1350, c.s) : 1));
-		ponLamina(elB, laminas.bahia, c, fx, fy, t < T_G ? 0.95 * suave(950, 1350, c.s) : 0);
+		// Inclinación: al tumbarse, el punto de mira baja un poco para dejar ver el horizonte
+		const incl = INCL(t);
+		const ang = (incl * Math.PI) / 180;
+		pSen = Math.sin(ang);
+		pCos = Math.cos(ang);
+		const fy = lerp(H * 0.47, fyMapa, mMapa) + (incl / 46) * 0.1 * (H - P);
+		elBruma.style.opacity = Math.min(1, incl / 30);
 
 		// Papel kraft: entra desde el norte al cruzar el Estrecho
 		const w = t >= ATRACA ? 1 : suave(uEstrecho - 0.17, uEstrecho + 0.05, u);
+
+		// Láminas del mapa
+		ponLamina(elA, laminas.atlantico, c, fx, fy, w >= 1 ? 0 : lerp(0.34, 0.92, mMapa) * (t < T_G ? 1 - suave(950, 1350, c.s) : 1), incl);
+		ponLamina(elB, laminas.bahia, c, fx, fy, t < T_G ? 0.95 * suave(950, 1350, c.s) : 0, incl);
 		const borde = w * (H - P + 18);
 		if (w <= 0) {
 			elKraft.style.visibility = 'hidden';
@@ -297,7 +334,7 @@
 			elKraft.style.visibility = 'visible';
 			elKraft.style.transform = `translate3d(0,${borde - H}px,0)`;
 			elKraftDentro.style.transform = `translate3d(0,${H - borde}px,0)`;
-			ponLamina(elC, laminas.mediterraneo, c, fx, fy, 0.92);
+			ponLamina(elC, laminas.mediterraneo, c, fx, fy, 0.92, incl);
 			elCostura.style.visibility = w < 1 ? 'visible' : 'hidden';
 			elCostura.style.transform = `translate3d(0,${borde}px,0)`;
 		}
@@ -308,10 +345,10 @@
 
 		// Marcas ancladas al mapa
 		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.45, 2.75, t));
-		ponMarca(mFinca, lugar.finca, c, fx, fy, enOrigen);
-		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.2, 2.5, t)));
-		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.9, 3.3, t));
-		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(4.8, LLEGA, t));
+		ponMarca(mFinca, lugar.finca, c, fx, fy, enOrigen, 34);
+		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.2, 2.5, t)), 12);
+		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.9, 3.3, t), 38);
+		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(4.8, LLEGA, t), 38);
 
 		// Portada → panel: el sello se despliega y baja a su sitio
 		const x0 = W / 2 - 153 * k;
@@ -385,7 +422,7 @@
 				const flota = clamp((tt - 6.45) / (FIN - 6.45));
 				elTableta.style.visibility = 'visible';
 				elTableta.style.opacity = op;
-				elTableta.style.transform = `translate3d(0,${d * 170 - flota * 22}px,0) rotate(${-7 + d * 16 + flota * 2.5}deg)`;
+				elTableta.style.transform = `translate3d(0,${d * 170 - flota * 34}px,0) rotate(${-7 + d * 16 + flota * 4}deg)`;
 			}
 		}
 
@@ -528,12 +565,26 @@
 
 	<canvas class="ruta" bind:this={elCanvas} style="width:{W}px;height:{H}px" aria-hidden="true"></canvas>
 
-	<div class="marca" bind:this={mFinca}><span class="finca"><i></i></span></div>
-	<div class="marca" bind:this={mRotulo}>
-		<span class="rotulo">{#each tx.rotulo as linea}{linea}<br />{/each}</span>
+	<!-- Bruma de horizonte: solo se ve con el mapa inclinado -->
+	<div class="bruma" bind:this={elBruma}></div>
+
+	<!-- Marcas: aro y sombra sobre el papel; el punto se levanta sobre un tallo al inclinarse el mapa -->
+	<div class="marca" bind:this={mFinca}>
+		<span class="suelo"><span class="sombra"></span><span class="aro pulso"></span></span>
+		<span class="tallo"></span>
+		<span class="cabeza"><span class="punto"></span></span>
 	</div>
-	<div class="marca" bind:this={mDestino}><span class="destino" class:llegado={paso >= 5}><i></i></span></div>
-	<div class="marca" bind:this={mBarcelona}><span class="ciudad">Barcelona</span></div>
+	<div class="marca" bind:this={mRotulo}>
+		<span class="cabeza"><span class="rotulo">{#each tx.rotulo as linea}{linea}<br />{/each}</span></span>
+	</div>
+	<div class="marca" bind:this={mDestino}>
+		<span class="suelo"><span class="sombra"></span><span class="aro destino" class:pulso={paso >= 5}></span></span>
+		<span class="tallo destino"></span>
+		<span class="cabeza"><span class="punto destino"></span></span>
+	</div>
+	<div class="marca" bind:this={mBarcelona}>
+		<span class="cabeza"><span class="ciudad">Barcelona</span></span>
+	</div>
 
 	<!-- Fotos: suben con su texto, atadas al dedo -->
 	<img class="foto foto-izq" bind:this={elFoto1} src="{base}{origen.fotos.mazorcas}" alt="Mazorcas de cacao en el árbol" />
@@ -706,6 +757,19 @@
 		opacity: 0;
 		pointer-events: none;
 	}
+	.bruma {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: calc((100svh - var(--P)) * 0.6);
+		background: linear-gradient(var(--papel) 14%, transparent);
+		opacity: 0;
+		pointer-events: none;
+	}
+	.kraft .bruma {
+		background: linear-gradient(var(--kraft) 14%, rgba(201, 174, 139, 0));
+	}
 	.velo-kraft {
 		background: linear-gradient(var(--kraft) 12%, rgba(201, 174, 139, 0));
 		opacity: 1;
@@ -758,27 +822,59 @@
 		will-change: transform, opacity;
 		pointer-events: none;
 	}
-	.finca,
-	.destino {
+	.suelo,
+	.cabeza {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 0;
+		height: 0;
+	}
+	.suelo {
+		transform: scaleY(var(--aplasta, 1));
+	}
+	.cabeza {
+		transform: translate3d(0, var(--alza, 0px), 0);
+	}
+	.tallo {
+		position: absolute;
+		left: -0.75px;
+		top: var(--alza, 0px);
+		width: 1.5px;
+		height: calc(var(--alza, 0px) * -1);
+		background: var(--crema);
+	}
+	.tallo.destino {
+		background: #8a3f20;
+	}
+	.sombra {
+		position: absolute;
+		left: -8px;
+		top: -8px;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: radial-gradient(rgba(6, 10, 20, 0.6), rgba(6, 10, 20, 0) 70%);
+		opacity: var(--sombra, 0);
+	}
+	.aro {
 		position: absolute;
 		left: -13px;
 		top: -13px;
 		width: 26px;
 		height: 26px;
+		box-sizing: border-box;
 		border-radius: 50%;
 		border: 1px solid var(--cobre);
 	}
-	.finca i,
-	.destino i {
-		position: absolute;
-		inset: 5px;
-		border-radius: 50%;
-		background: var(--panel);
-		border: 1.2px solid var(--crema);
-		box-shadow: inset 0 0 0 3.4px var(--panel), inset 0 0 0 8px var(--crema);
+	.aro.destino {
+		left: -15px;
+		top: -15px;
+		width: 30px;
+		height: 30px;
+		border-color: #a9502b;
 	}
-	.finca::after,
-	.destino.llegado::after {
+	.aro.pulso::after {
 		content: '';
 		position: absolute;
 		inset: -1px;
@@ -786,21 +882,34 @@
 		border: 1px solid var(--cobre);
 		animation: onda 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
 	}
-	.destino {
-		left: -15px;
-		top: -15px;
-		width: 30px;
-		height: 30px;
+	.aro.destino.pulso::after {
 		border-color: #a9502b;
 	}
-	.destino i {
-		inset: 6px;
+	.punto {
+		position: absolute;
+		left: -7px;
+		top: -7px;
+		width: 14px;
+		height: 14px;
+		box-sizing: border-box;
+		border-radius: 50%;
+		background: var(--panel);
+		border: 1.2px solid var(--crema);
+		box-shadow:
+			inset 0 0 0 3.4px var(--panel),
+			inset 0 0 0 8px var(--crema);
+	}
+	.punto.destino {
+		left: -8px;
+		top: -8px;
+		width: 16px;
+		height: 16px;
 		background: #c9764f;
 		border: 0;
-		box-shadow: inset 0 0 0 5.6px #c9764f, inset 0 0 0 9px #f0dcba;
-	}
-	.destino.llegado::after {
-		border-color: #a9502b;
+		box-shadow:
+			inset 0 0 0 5.6px #c9764f,
+			inset 0 0 0 9px #f0dcba,
+			0 3px 6px rgba(42, 30, 22, 0.35);
 	}
 	@keyframes onda {
 		from {
@@ -1350,8 +1459,7 @@
 			transition-delay: 0s;
 		}
 		.pista-scroll svg,
-		.finca::after,
-		.destino.llegado::after {
+		.aro.pulso::after {
 			animation: none;
 		}
 	}
