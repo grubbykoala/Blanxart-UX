@@ -63,7 +63,7 @@ export default {
 				region: 'Selva Tropical Atlántica',
 				sub: 'Cacao ecológico',
 				notas: 'Notas cítricas y afrutadas que se combinan con matices picantes, a nuez y tierra.',
-				pista: 'Desliza para seguir su ruta'
+				pista: 'Desliza hacia arriba'
 			},
 			capitulos: ['El origen', 'La travesía', 'El obrador'],
 			rotulo: ['Selva', 'Tropical', 'Atlántica'],
@@ -138,7 +138,7 @@ export default {
 				region: 'Selva Tropical Atlàntica',
 				sub: 'Cacau ecològic',
 				notas: 'Notes cítriques i afruitades que es combinen amb matisos picants, de nou i terra.',
-				pista: 'Llisca per seguir la seva ruta'
+				pista: 'Llisca cap amunt'
 			},
 			capitulos: ["L'origen", 'La travessia', "L'obrador"],
 			rotulo: ['Selva', 'Tropical', 'Atlàntica'],
@@ -213,7 +213,7 @@ export default {
 				region: 'Atlantic Rainforest',
 				sub: 'Organic cocoa',
 				notas: 'Citrus and fruity notes that blend with hints of spice, nuts and earth.',
-				pista: 'Scroll to follow its route'
+				pista: 'Swipe up'
 			},
 			capitulos: ['The origin', 'The crossing', 'The workshop'],
 			rotulo: ['Atlantic', 'Rain-', 'forest'],
