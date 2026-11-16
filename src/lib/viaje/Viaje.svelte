@@ -77,7 +77,6 @@
 	let elA, elB, elC, elKraft, elKraftDentro, elCostura, elVelo, elBruma;
 	let elLogo, elIdiomas, elPortada, gSup, gPanel, gInf, gSello;
 	let mFinca, mRotulo, mDestino, mBarcelona, mNave, elNave;
-	let naveEnKraft = false;
 	let elKm, elDia, elAvance, elBarco, elBarras = [];
 	let elVentana, elBloques = [], elFoto1, elFoto2, elTableta;
 
@@ -330,12 +329,10 @@
 
 		// El barco: navega sobre la ruta, crece un poco al acercarse la cámara y cabecea con el avance
 		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.1, LLEGA + 0.05, t));
-		const yBarco = ponMarca(mNave, ruta.en(u), c, fx, fy, verBarco);
+		ponMarca(mNave, ruta.en(u), c, fx, fy, verBarco);
 		if (verBarco > 0.004) {
 			const talla = lerp(0.9, 1.3, suave(5.9, 7.6, Math.log(c.s)));
 			elNave.style.transform = `scale(${talla}) rotate(${Math.sin(u * 140) * 2.4}deg)`;
-			const sobreKraft = yBarco < borde - 4;
-			if (sobreKraft !== naveEnKraft) naveEnKraft = sobreKraft;
 		}
 
 		// Marcas ancladas al mapa
@@ -580,18 +577,38 @@
 		<span class="cabeza"><span class="ciudad">Barcelona</span></span>
 	</div>
 	<div class="marca" bind:this={mNave} aria-hidden="true">
-		<span class="nave" class:tinta={naveEnKraft} bind:this={elNave}>
-			<svg viewBox="0 0 64 46" width="50" height="36" fill="none" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M33 10c-2-3-5-3.2-7.2-2.2S21.6 9 19.5 7 14.5 5 12.4 7" stroke="var(--trazo)" stroke-width="1" opacity="0.55" />
-				<path d="M15 12v17M49 14v14M15 13 7 28M15 13l9 9M49 15l8 11M49 15l-8 8" stroke="var(--trazo)" stroke-width="0.8" />
-				<path d="M15 11.400l5.5 1.7-5.5 1.700z" fill="var(--acento)" />
-				<path d="M29.5 12h6l.8 10h-7.600z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.1" />
-				<path d="M29.3 14.700h6.4" stroke="var(--acento)" stroke-width="1.7" />
-				<path d="M22 22h20v7H22z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.1" />
-				<path d="M25.5 25.500h.01M29.5 25.500h.01M33.5 25.500h.01M37.5 25.500h.01" stroke="var(--trazo)" stroke-width="1.6" />
-				<path d="M4 29h44l13-3-5 10.500c-.6 1.3-1.7 2-3.2 2H12.400c-1.6 0-2.7-.8-3.3-2.200z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.2" />
-				<path d="M7.5 33h48.5" stroke="var(--acento)" stroke-width="1.3" />
-				<path d="M1 42.500q3-2.4 6 0t6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0" stroke="var(--trazo)" stroke-width="0.9" opacity="0.7" />
+		<span class="nave" bind:this={elNave}>
+			<svg viewBox="0 0 72 44" width="58" height="35.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+				<!-- Perfil oscuro por debajo: recorta el barco tanto sobre el papel azul como sobre el kraft -->
+				<path d="M4 26h4V11h13v2h0v13h2v-10.800h24.500v3.600h6v3.600h6v3.600l11.5-3-5.5 11.500c-.6 1.3-1.7 2-3.5 2H9.500c-1.7 0-2.8-.8-3.3-2.500z" fill="var(--relleno)" stroke="var(--relleno)" stroke-width="3.4" />
+				<!-- Puente, chimenea y mástil -->
+				<path d="M10 11V6.200h4.200V11M17.5 11V4.500M15.8 6h3.4" stroke="var(--trazo)" stroke-width="1" fill="var(--relleno)" />
+				<path d="M10 8h4.2" stroke="var(--acento)" stroke-width="1.5" />
+				<path d="M8 13h12v13H8zM7 11h14v2H7z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1" />
+				<path d="M10.5 16.500h.01M14 16.500h.01M17.5 16.500h.01M10.5 20h.01M14 20h.01M17.5 20h.01M10.5 23.300h.01M14 23.300h.01M17.5 23.300h.01" stroke="var(--trazo)" stroke-width="1.4" />
+				<!-- Contenedores -->
+				<g stroke="var(--relleno)" stroke-width="0.6">
+					<rect x="23" y="22.4" width="5.5" height="3.6" fill="var(--acento)" />
+					<rect x="29" y="22.4" width="5.5" height="3.6" fill="var(--relleno)" />
+					<rect x="35" y="22.4" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="41" y="22.4" width="5.5" height="3.6" fill="var(--acento)" />
+					<rect x="47" y="22.4" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="53" y="22.4" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="23" y="18.8" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="29" y="18.8" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="35" y="18.8" width="5.5" height="3.6" fill="var(--acento)" />
+					<rect x="41" y="18.8" width="5.5" height="3.6" fill="var(--relleno)" />
+					<rect x="47" y="18.8" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="23" y="15.2" width="5.5" height="3.6" fill="var(--acento)" />
+					<rect x="29" y="15.2" width="5.5" height="3.6" fill="var(--relleno)" />
+					<rect x="35" y="15.2" width="5.5" height="3.6" fill="#f0dcba" />
+					<rect x="41" y="15.2" width="5.5" height="3.6" fill="var(--acento)" />
+				</g>
+				<path d="M62 24.500V17M60.6 18.600h2.8" stroke="var(--trazo)" stroke-width="1" />
+				<!-- Casco -->
+				<path d="M4 26h54l11-3-5.5 11.500c-.6 1.3-1.7 2-3.5 2H9.500c-1.7 0-2.8-.8-3.3-2.500z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.2" />
+				<path d="M6.3 32.400h58.4" stroke="var(--acento)" stroke-width="1.5" />
+				<path d="M2 41q3-2.2 6 0t6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0" stroke="var(--acento)" stroke-width="0.9" opacity="0.850" />
 			</svg>
 		</span>
 	</div>
@@ -933,27 +950,22 @@
 	}
 	/* El barco: el punto de anclaje es el centro de la línea de flotación */
 	.nave {
+		/* Un solo juego de colores: el perfil oscuro lo recorta igual sobre el azul que sobre el kraft */
 		--trazo: #f0dcba;
-		--relleno: var(--panel);
-		--acento: var(--cobre);
+		--relleno: #1a2437;
+		--acento: #e08b63;
 		position: absolute;
-		left: -25px;
-		top: -30.5px;
-		width: 50px;
-		height: 36px;
-		transform-origin: 50% 85%;
-		filter: drop-shadow(0 3px 4px rgba(6, 10, 20, 0.45));
-	}
-	.nave.tinta {
-		--trazo: #2a1e16;
-		--relleno: #dcc4a0;
-		--acento: #a9502b;
-		filter: drop-shadow(0 3px 4px rgba(42, 30, 22, 0.3));
+		left: -29px;
+		top: -29.4px;
+		width: 58px;
+		height: 35.4px;
+		transform-origin: 50% 83%;
+		filter: drop-shadow(0 3px 4px rgba(6, 10, 20, 0.4));
 	}
 	.nave svg {
 		display: block;
 		animation: cabeceo 3.4s ease-in-out infinite;
-		transform-origin: 50% 85%;
+		transform-origin: 50% 83%;
 	}
 	@keyframes cabeceo {
 		0%,
