@@ -698,9 +698,16 @@
 		</div>
 		<div class="g-inf" bind:this={gInf}>
 			<p class="notas entra" style="--i:7">{tx.portada.notas}</p>
-			<div class="pista-scroll entra" style="--i:9">
-				<span>{tx.portada.pista}</span>
-				<svg width="14" height="30" viewBox="0 0 14 30" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1v27M2 23l5 5 5-5" /></svg>
+			<div class="pista-scroll entra" style="--i:9">{tx.portada.pista}</div>
+			<!-- El gesto: un dedo que toca abajo y desliza hacia arriba -->
+			<div class="gesto entra" style="--i:10" aria-hidden="true">
+				<svg class="punta" width="12" height="7" viewBox="0 0 12 7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l5-5 5 5" /></svg>
+				<span class="carril"></span>
+				<span class="estela"></span>
+				<span class="dedo">
+					<span class="toque"></span>
+					<svg class="mano" width="36" height="45" viewBox="0 0 32 40" fill="#1a2437" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M11 24V5.5a2.5 2.5 0 0 1 5 0V14a2.5 2.5 0 0 1 5 0v1.5a2.4 2.4 0 0 1 4.8 0V17a2.2 2.2 0 0 1 4.4 0v10c0 6-4 10.5-9.5 10.5h-2.5c-4 0-6.6-2-8.6-5.6L5.2 24.6c-1.2-2.2 1.6-4.3 3.4-2.4L11 24.8" /></svg>
+				</span>
 			</div>
 		</div>
 	</div>
@@ -1390,32 +1397,139 @@
 	}
 	.pista-scroll {
 		margin-top: auto;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 10px;
 		font-size: 12px;
 		font-weight: 600;
 		letter-spacing: 0.24em;
-		text-indent: 0.24em;
 		text-transform: uppercase;
+		text-align: center;
 		color: var(--crema);
 	}
-	.pista-scroll svg {
-		color: var(--cobre);
-		animation: baja 2.2s ease-in-out infinite;
-	}
-	@keyframes baja {
-		0%,
-		100% {
-			transform: translateY(-3px);
-		}
-		50% {
-			transform: translateY(5px);
-		}
-	}
 
-	/* Entrada escalonada de la portada */
+	/* Gesto de deslizar: el dedo toca abajo, sube dejando una estela y se levanta */
+	.gesto {
+		position: absolute;
+		right: 34px;
+		bottom: 0;
+		width: 44px;
+		height: 126px;
+	}
+	.punta {
+		position: absolute;
+		left: 13px;
+		top: 0;
+		color: var(--cobre);
+	}
+	.carril {
+		position: absolute;
+		left: 18.5px;
+		top: 12px;
+		bottom: 42px;
+		width: 1px;
+		background: repeating-linear-gradient(rgba(227, 197, 155, 0.5) 0 2px, transparent 2px 6px);
+	}
+	.estela {
+		position: absolute;
+		left: 16px;
+		bottom: 42px;
+		width: 6px;
+		height: 64px;
+		border-radius: 3px;
+		background: linear-gradient(to top, rgba(233, 205, 164, 0), rgba(233, 205, 164, 0.7));
+		transform-origin: 50% 100%;
+		transform: scaleY(0);
+		animation: estela 2.8s linear infinite;
+	}
+	.dedo {
+		position: absolute;
+		left: 4px;
+		bottom: 0;
+		width: 36px;
+		height: 45px;
+		color: var(--crema-clara);
+		animation: desliza 2.8s linear infinite;
+	}
+	.mano {
+		display: block;
+		transform-origin: 15px 5px;
+		transform: rotate(-13deg);
+		filter: drop-shadow(0 2px 3px rgba(8, 12, 22, 0.5));
+	}
+	/* La yema toca la pantalla */
+	.toque {
+		position: absolute;
+		left: 3px;
+		top: -7px;
+		width: 24px;
+		height: 24px;
+		box-sizing: border-box;
+		border-radius: 50%;
+		border: 1.5px solid var(--cobre);
+		background: rgba(224, 139, 99, 0.22);
+		opacity: 0;
+		animation: toque 2.8s linear infinite;
+	}
+	@keyframes desliza {
+		0% {
+			transform: translate3d(5px, 7px, 0) scale(1.1);
+			opacity: 0;
+		}
+		10% {
+			transform: translate3d(0, 0, 0) scale(1);
+			opacity: 1;
+		}
+		17% {
+			transform: translate3d(0, 0, 0) scale(1);
+			opacity: 1;
+			animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+		}
+		56% {
+			transform: translate3d(0, -64px, 0) scale(1);
+			opacity: 1;
+		}
+		60% {
+			transform: translate3d(0, -64px, 0) scale(1);
+			opacity: 1;
+		}
+		72%,
+		100% {
+			transform: translate3d(4px, -66px, 0) scale(1.1);
+			opacity: 0;
+		}
+	}
+	@keyframes toque {
+		0%,
+		9% {
+			transform: scale(1.5);
+			opacity: 0;
+		}
+		15%,
+		56% {
+			transform: scale(1);
+			opacity: 1;
+		}
+		66%,
+		100% {
+			transform: scale(1.5);
+			opacity: 0;
+		}
+	}
+	@keyframes estela {
+		0%,
+		17% {
+			transform: scaleY(0);
+			opacity: 1;
+			animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+		}
+		56% {
+			transform: scaleY(1);
+			opacity: 1;
+		}
+		74%,
+		100% {
+			transform: scaleY(1);
+			opacity: 0;
+		}
+	}
 	.entra {
 		opacity: 0;
 		translate: 0 14px;
@@ -1513,7 +1627,9 @@
 			transition-duration: 0.01s;
 			transition-delay: 0s;
 		}
-		.pista-scroll svg,
+		.dedo,
+		.toque,
+		.estela,
 		.aro.pulso::after,
 		.nave svg {
 			animation: none;
