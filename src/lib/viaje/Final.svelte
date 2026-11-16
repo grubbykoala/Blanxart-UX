@@ -72,15 +72,15 @@
 		<div class="otros bloque" use:aparece>
 			<div class="sobre">{tx.final.otros}</div>
 			<div class="tarjetas">
-				{#each origen.otros as o}
-					<div class="tarjeta" style="--papel-o:{o.papel}; --panel-o:{o.panel}">
-						<div class="sello">
+				{#each origen.otros as o, i}
+					<figure class="otra" style="--giro:{i % 2 ? 3 : -3}deg; --i:{i}">
+						<img src="{base}{o.tableta}" alt="Tableta Blanxart Origins {o.nombre} {o.pct} %" width={o.ancho} height={o.alto} loading="lazy" />
+						<figcaption>
 							<span class="nombre">{o.nombre}</span>
-							<span class="region">{o.region}</span>
-							<span class="pct">{o.pct}<sup>%</sup></span>
-						</div>
-						<span class="pronto">{tx.final.pronto}</span>
-					</div>
+							<span class="region">{o.region} · {o.pct} %</span>
+							<span class="pronto">{tx.final.pronto}</span>
+						</figcaption>
+					</figure>
 				{/each}
 			</div>
 		</div>
@@ -215,62 +215,59 @@
 		margin-top: 52px;
 	}
 	.tarjetas {
-		margin-top: 18px;
+		margin-top: 26px;
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 14px;
+		gap: 18px;
 	}
-	.tarjeta {
-		position: relative;
-		background: var(--papel-o);
-		padding: 20px 14px;
-		box-shadow: 0 10px 22px rgba(4, 7, 14, 0.4);
-	}
-	.tarjeta .sello {
-		background: var(--panel-o);
-		padding: 22px 8px 20px;
+	.otra {
+		margin: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		text-align: center;
-		-webkit-mask:
-			radial-gradient(circle at 50% 0, transparent 2.2px, #000 2.7px) 0 0 / 8px 51% repeat-x,
-			radial-gradient(circle at 50% 100%, transparent 2.2px, #000 2.7px) 0 100% / 8px 51% repeat-x;
-		mask:
-			radial-gradient(circle at 50% 0, transparent 2.2px, #000 2.7px) 0 0 / 8px 51% repeat-x,
-			radial-gradient(circle at 50% 100%, transparent 2.2px, #000 2.7px) 0 100% / 8px 51% repeat-x;
 	}
-	.tarjeta .nombre {
+	/* Las tabletas entran girando hasta su sitio cuando el bloque aparece */
+	.otra img {
+		display: block;
+		width: min(78%, 132px);
+		height: auto;
+		filter: drop-shadow(0 16px 18px rgba(4, 7, 14, 0.5));
+		transform: translate3d(0, 26px, 0) rotate(calc(var(--giro) * 3));
+		opacity: 0;
+		transition:
+			transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i) * 0.12s + 0.1s),
+			opacity 0.5s ease calc(var(--i) * 0.12s + 0.1s);
+	}
+	.otros:global(.visto) .otra img {
+		transform: rotate(var(--giro));
+		opacity: 1;
+	}
+	.otra figcaption {
+		margin-top: 22px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+	.otra .nombre {
 		font-family: var(--serif);
 		font-weight: 600;
-		font-size: 30px;
+		font-size: 24px;
 		line-height: 1;
 		color: var(--crema-clara);
 	}
-	.tarjeta .region {
+	.otra .region {
 		margin-top: 8px;
-		min-height: 2.6em;
-		font-size: 9.5px;
+		font-size: 10px;
 		font-weight: 600;
-		letter-spacing: 0.16em;
-		line-height: 1.3;
+		letter-spacing: 0.14em;
+		line-height: 1.4;
 		text-transform: uppercase;
-	}
-	.tarjeta .pct {
-		margin-top: 6px;
-		font-family: var(--serif);
-		font-size: 34px;
-		line-height: 1;
-		color: var(--crema-clara);
-	}
-	.tarjeta .pct sup {
-		font-size: 15px;
-		margin-left: 1px;
+		color: var(--cuerpo);
 	}
 	.pronto {
 		display: block;
-		margin-top: 14px;
-		text-align: center;
+		margin-top: 10px;
 		font-size: 11px;
 		font-weight: 700;
 		letter-spacing: 0.2em;
@@ -358,7 +355,8 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.bloque {
+		.bloque,
+		.otra img {
 			transition-duration: 0.01s;
 			transition-delay: 0s;
 		}

@@ -283,7 +283,7 @@ export default {
 	},
 
 	otros: [
-		{ nombre: 'Congo', region: 'Mountains of the Moon', pct: 82, papel: '#5B373C', panel: '#40242A' },
-		{ nombre: 'Perú', region: 'Alto Piura', pct: 100, papel: '#56443A', panel: '#3A2C25' }
+		{ nombre: 'Congo', region: 'Mountains of the Moon', pct: 82, tableta: '/marca/tableta-congo.png', ancho: 215, alto: 448 },
+		{ nombre: 'Perú', region: 'Alto Piura', pct: 100, tableta: '/marca/tableta-peru.png', ancho: 205, alto: 416 }
 	]
 };
