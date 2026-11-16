@@ -23,7 +23,7 @@ export default {
 	},
 
 	lugares: {
-		finca: [-39.38, -14.72],
+		finca: [-39.95, -14.2],
 		rotulo: [-40.5, -13.45],
 		puerto: [-39.03, -14.79],
 		destino: [2.17, 41.36]

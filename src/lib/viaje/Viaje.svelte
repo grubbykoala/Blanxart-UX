@@ -19,14 +19,15 @@
 	const ABRE = 0.95; // la portada termina de desplegarse
 	// El zoom dibuja un solo arco: se acerca al origen, se aleja una vez para
 	// enseñar el Atlántico y vuelve a acercarse hasta Barcelona. Sin vaivenes.
-	const T_C = 2.25; // punto más cercano a la finca; desde aquí se aleja
-	const T_G = 3.4; // vista general del Atlántico; desde aquí solo se acerca
-	const ZARPA = 3.3;
+	// El barco zarpa con el zoom todavía cerca; la vista más lejana coincide con la mitad de la ruta.
+	const ZARPA = 2.3;
 	const ATRACA = 5.0;
 	const LLEGA = 5.05;
-	const CAPITULOS = [[0.5, 2.28], [2.28, 5.32], [5.32, FIN]];
+	const T_C = 2.4; // punto más cercano al puerto; desde aquí se aleja
+	const T_G = (ZARPA + ATRACA) / 2; // el barco va por la mitad: se ve el Atlántico entero
+	const CAPITULOS = [[0.5, 2.12], [2.12, 5.32], [5.32, FIN]];
 	// La cinta de textos: en el tiempo t descansa el bloque n
-	const CINTA = [[ABRE, 1], [1.85, 2], [2.7, 3], [3.35, 4], [ATRACA, 4], [5.65, 5], [6.45, 6]];
+	const CINTA = [[ABRE, 1], [1.75, 2], [2.5, 3], [3.15, 4], [ATRACA, 4], [5.65, 5], [6.45, 6]];
 
 	$: tx = origen.textos[$idioma];
 
@@ -63,7 +64,6 @@
 	let zoomLog = () => Math.log(760); // t → ln(escala): una sola curva suave para todo el viaje
 	let rAbre = () => 0;
 	let rOrigen = () => 0;
-	let rSale = () => 0;
 	// Perspectiva: el mapa se inclina al acercarse al origen y al destino
 	const FUGA = 760; // distancia del ojo al papel, en px
 	const INCL = curvaInclinacion();
@@ -76,7 +76,8 @@
 	let elPista, elEscenario, elPanel, elPanelFondo, elCanvas;
 	let elA, elB, elC, elKraft, elKraftDentro, elCostura, elVelo, elBruma;
 	let elLogo, elIdiomas, elPortada, gSup, gPanel, gInf, gSello;
-	let mFinca, mRotulo, mDestino, mBarcelona;
+	let mFinca, mRotulo, mDestino, mBarcelona, mNave, elNave;
+	let naveEnKraft = false;
 	let elKm, elDia, elAvance, elBarco, elBarras = [];
 	let elVentana, elBloques = [], elFoto1, elFoto2, elTableta;
 
@@ -136,7 +137,7 @@
 	/** Grados de inclinación del mapa en cada momento: se tumba al acercarse y se endereza al alejarse. */
 	function curvaInclinacion() {
 		const g = origen.camara.inclinacion;
-		return curvaMonotona([[0, 0], [ABRE, g[0]], [T_C, g[1]], [3.0, 0], [4.7, 0], [5.3, g[2]], [5.9, g[3]], [FIN, g[4]]]);
+		return curvaMonotona([[0, 0], [ABRE, g[0]], [T_C, g[1]], [3.35, 0], [4.7, 0], [5.3, g[2]], [5.9, g[3]], [FIN, g[4]]]);
 	}
 
 	/** Fracción de un desplazamiento entre t0 y t1 para que el mapa se deslice a velocidad constante en pantalla, sea cual sea el zoom. */
@@ -163,15 +164,17 @@
 			const v = rAbre(t);
 			return entre(cam.portada, cam.origenA, 0.3 * v + 0.7 * (1 - Math.pow(1 - v, 1.8)), s);
 		}
-		if (t < T_C) return entre(cam.origenA, cam.origenC, rOrigen(t), s);
-		if (t < T_G) return entre(cam.origenC, cam.general, fluye(rSale(t)), s);
+		const o = entre(cam.origenA, cam.origenC, rOrigen(t), s);
+		if (t < ZARPA) return o;
 		if (t < LLEGA) {
+			// Sigue al barco; hacia la mitad de la ruta se centra en el Atlántico para verlo entero
 			const p = ruta.en(uDe(t));
-			const sigue = suave(T_G, T_G + 0.55, t);
-			const mira = sigue * (1 - suave(4.5, LLEGA, t));
+			const sigue = suave(ZARPA, ZARPA + 0.5, t);
+			const entero = suave(ZARPA + 0.55, T_G, t) * (1 - suave(T_G, LLEGA - 0.75, t));
+			const mira = sigue * (1 - entero) * (1 - suave(4.5, LLEGA, t));
 			return {
-				x: lerp(cam.general.x, p.x, sigue) + (26 / s) * mira,
-				y: lerp(cam.general.y, p.y, sigue) - (34 / s) * mira,
+				x: lerp(lerp(o.x, p.x, sigue), cam.general.x, entero) + (26 / s) * mira,
+				y: lerp(lerp(o.y, p.y, sigue), cam.general.y, entero) - (34 / s) * mira,
 				s
 			};
 		}
@@ -214,14 +217,14 @@
 		el.style.setProperty('--alza', `${-alto * pSen * e}px`);
 		el.style.setProperty('--aplasta', pCos);
 		el.style.setProperty('--sombra', Math.min(1, pSen * 2.2));
+		return fy + dy * pCos * e;
 	}
 
 	function pintarRuta(t, c, fx, fy, u, borde) {
 		if (!ctx) return;
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.clearRect(0, 0, W, H);
-		const a = suave(2.7, 3.15, t);
-		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.03, LLEGA + 0.07, t));
+		const a = suave(ZARPA - 0.35, ZARPA - 0.05, t);
 		if (a <= 0) return;
 		const X = (p) => fx + (p.x - c.x) * c.s * escalaEn((p.y - c.y) * c.s);
 		const Y = (p) => {
@@ -267,24 +270,6 @@
 			ctx.arc(X(pts[0]), Y(pts[0]), 3.2, 0, 6.2832);
 			ctx.fillStyle = cobre;
 			ctx.fill();
-			// barco
-			if (verBarco > 0) {
-				const bx = X(barco);
-				const by = Y(barco);
-				ctx.beginPath();
-				ctx.arc(bx, by, 10, 0, 6.2832);
-				ctx.lineWidth = 1;
-				ctx.strokeStyle = cobre;
-				ctx.globalAlpha = 0.7 * a * verBarco;
-				ctx.stroke();
-				ctx.globalAlpha = a * verBarco;
-				ctx.beginPath();
-				ctx.arc(bx, by, 4.6, 0, 6.2832);
-				ctx.fillStyle = '#F3E3C6';
-				ctx.fill();
-				ctx.lineWidth = 2;
-				ctx.stroke();
-			}
 			ctx.restore();
 		};
 		zona(0, borde, '#2A1E16', '#A9502B');
@@ -343,11 +328,21 @@
 
 		pintarRuta(t, c, fx, fy, u, borde);
 
+		// El barco: navega sobre la ruta, crece un poco al acercarse la cámara y cabecea con el avance
+		const verBarco = suave(ZARPA - 0.25, ZARPA - 0.05, t) * (1 - suave(LLEGA - 0.1, LLEGA + 0.05, t));
+		const yBarco = ponMarca(mNave, ruta.en(u), c, fx, fy, verBarco);
+		if (verBarco > 0.004) {
+			const talla = lerp(0.9, 1.3, suave(5.9, 7.6, Math.log(c.s)));
+			elNave.style.transform = `scale(${talla}) rotate(${Math.sin(u * 140) * 2.4}deg)`;
+			const sobreKraft = yBarco < borde - 4;
+			if (sobreKraft !== naveEnKraft) naveEnKraft = sobreKraft;
+		}
+
 		// Marcas ancladas al mapa
-		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.45, 2.75, t));
+		const enOrigen = suave(0.6, 0.9, t) * (1 - suave(2.65, 3.0, t));
 		ponMarca(mFinca, lugar.finca, c, fx, fy, enOrigen, 34);
-		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.2, 2.5, t)), 12);
-		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(2.9, 3.3, t), 38);
+		ponMarca(mRotulo, lugar.rotulo, c, fx, fy, enOrigen * (1 - suave(2.05, 2.35, t)), 12);
+		ponMarca(mDestino, lugar.destino, c, fx, fy, suave(3.0, 3.5, t), 38);
 		ponMarca(mBarcelona, lugar.destino, c, fx, fy, suave(4.8, LLEGA, t), 38);
 
 		// Portada → panel: el sello se despliega y baja a su sitio
@@ -465,7 +460,6 @@
 		);
 		rAbre = reparto(0, ABRE);
 		rOrigen = reparto(ABRE, T_C);
-		rSale = reparto(T_C, T_G);
 		paso_px = elVentana.clientHeight + 28;
 		pintar(tCam, tTxt);
 	}
@@ -584,6 +578,22 @@
 	</div>
 	<div class="marca" bind:this={mBarcelona}>
 		<span class="cabeza"><span class="ciudad">Barcelona</span></span>
+	</div>
+	<div class="marca" bind:this={mNave} aria-hidden="true">
+		<span class="nave" class:tinta={naveEnKraft} bind:this={elNave}>
+			<svg viewBox="0 0 64 46" width="50" height="36" fill="none" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M33 10c-2-3-5-3.2-7.2-2.2S21.6 9 19.5 7 14.5 5 12.4 7" stroke="var(--trazo)" stroke-width="1" opacity="0.55" />
+				<path d="M15 12v17M49 14v14M15 13 7 28M15 13l9 9M49 15l8 11M49 15l-8 8" stroke="var(--trazo)" stroke-width="0.8" />
+				<path d="M15 11.400l5.5 1.7-5.5 1.700z" fill="var(--acento)" />
+				<path d="M29.5 12h6l.8 10h-7.600z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.1" />
+				<path d="M29.3 14.700h6.4" stroke="var(--acento)" stroke-width="1.7" />
+				<path d="M22 22h20v7H22z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.1" />
+				<path d="M25.5 25.500h.01M29.5 25.500h.01M33.5 25.500h.01M37.5 25.500h.01" stroke="var(--trazo)" stroke-width="1.6" />
+				<path d="M4 29h44l13-3-5 10.500c-.6 1.3-1.7 2-3.2 2H12.400c-1.6 0-2.7-.8-3.3-2.200z" fill="var(--relleno)" stroke="var(--trazo)" stroke-width="1.2" />
+				<path d="M7.5 33h48.5" stroke="var(--acento)" stroke-width="1.3" />
+				<path d="M1 42.500q3-2.4 6 0t6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0 6 0" stroke="var(--trazo)" stroke-width="0.9" opacity="0.7" />
+			</svg>
+		</span>
 	</div>
 
 	<!-- Fotos: suben con su texto, atadas al dedo -->
@@ -919,6 +929,39 @@
 		to {
 			transform: scale(2.5);
 			opacity: 0;
+		}
+	}
+	/* El barco: el punto de anclaje es el centro de la línea de flotación */
+	.nave {
+		--trazo: #f0dcba;
+		--relleno: var(--panel);
+		--acento: var(--cobre);
+		position: absolute;
+		left: -25px;
+		top: -30.5px;
+		width: 50px;
+		height: 36px;
+		transform-origin: 50% 85%;
+		filter: drop-shadow(0 3px 4px rgba(6, 10, 20, 0.45));
+	}
+	.nave.tinta {
+		--trazo: #2a1e16;
+		--relleno: #dcc4a0;
+		--acento: #a9502b;
+		filter: drop-shadow(0 3px 4px rgba(42, 30, 22, 0.3));
+	}
+	.nave svg {
+		display: block;
+		animation: cabeceo 3.4s ease-in-out infinite;
+		transform-origin: 50% 85%;
+	}
+	@keyframes cabeceo {
+		0%,
+		100% {
+			transform: translateY(0.6px) rotate(-1.4deg);
+		}
+		50% {
+			transform: translateY(-0.8px) rotate(1.6deg);
 		}
 	}
 	.rotulo {
@@ -1459,7 +1502,8 @@
 			transition-delay: 0s;
 		}
 		.pista-scroll svg,
-		.aro.pulso::after {
+		.aro.pulso::after,
+		.nave svg {
 			animation: none;
 		}
 	}
