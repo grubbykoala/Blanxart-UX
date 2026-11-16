@@ -17,7 +17,9 @@ export default {
 		general: [-18.5, 18, 290],
 		llegada: 1900,
 		asentada: 2450,
-		final: [2.0, 41.3, 3000]
+		final: [2.0, 41.3, 3000],
+		// Grados que se tumba el mapa: al terminar la portada, en la finca, y tres momentos de la llegada
+		inclinacion: [24, 46, 24, 36, 44]
 	},
 
 	lugares: {

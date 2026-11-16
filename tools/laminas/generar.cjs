@@ -175,7 +175,8 @@ const plates = [
   // B — Bahía: el origen, con la franja de selva atlántica en cobre.
   plate({
     id: 'bahia', ink: cream, accent: copper, sub: true,
-    west: -50, east: -30, south: -26, north: -3, d: 2000,
+    // Sobra norte a propósito: con el mapa inclinado se ve mucho más lejos hacia el horizonte.
+    west: -53, east: -27, south: -26, north: 6, d: 2000,
     gratStep: [2, 2], shoreW: 44, shoreBlur: 12, landStipple: 0.2, feather: 46,
     extra: (proj, gp) => {
       const m = gp(mata);
@@ -185,7 +186,8 @@ const plates = [
       T(-42.6, -11.7, 'B A H I A', { size: 22, ls: 5 }) +
       T(-44.6, -17.8, 'Minas Geraes', { italic: 1, size: 15, ls: 2 }) + T(-40.9, -19.75, 'Espírito Santo', { italic: 1, size: 10.5, ls: 1 }) +
       T(-37.3, -10.45, 'Sergipe', { italic: 1, size: 10, ls: 1 }) + T(-47.6, -13.2, 'Goyaz', { italic: 1, size: 14, ls: 2 }) +
-      T(-42.5, -7.4, 'Piauhy', { italic: 1, size: 13, ls: 2 }) + T(-37.5, -7.9, 'Pernambuco', { italic: 1, size: 11, ls: 1.5 }) +
+      T(-42.5, -7.4, 'Piauhy', { italic: 1, size: 13, ls: 2 }) + T(-45.2, -4.6, 'Maranhão', { italic: 1, size: 13, ls: 2 }) + T(-39.6, -5.2, 'Ceará', { italic: 1, size: 12, ls: 2 }) +
+      T(-51.2, -2.2, 'Pará', { italic: 1, size: 14, ls: 3 }) + City(-38.54, -3.72, 'Fortaleza', { dy: -5 }) + City(-48.5, -1.45, 'Belém', { dy: -4 }) + T(-37.5, -7.9, 'Pernambuco', { italic: 1, size: 11, ls: 1.5 }) +
       T(-45.5, -22.4, 'São Paulo', { italic: 1, size: 12, ls: 2 }) +
       T(-35.6, -15.2, 'OCÉANO', { italic: 1, size: 14, ls: 8 }) + T(-35.6, -16.0, 'ATLÁNTICO', { italic: 1, size: 14, ls: 8 }) +
       T(-43.15, -12.9, 'Río São Francisco', { italic: 1, size: 8.5, ls: 0.6, rot: -58 }) +
@@ -197,7 +199,7 @@ const plates = [
   // C — Mediterráneo occidental en tinta oscura, para el papel kraft de la llegada.
   plate({
     id: 'mediterraneo', ink: dark, accent: copper,
-    west: -16, east: 12, south: 26, north: 49, d: 2000,
+    west: -16, east: 14, south: 26, north: 57, d: 2000,
     gratStep: [2, 2], shoreW: 40, shoreBlur: 11, landStipple: 0.22, feather: 46,
     labels: (T, City) =>
       T(-3.4, 40.1, 'E S P A Ñ A', { size: 22, ls: 6 }) + T(2.2, 45.6, 'F R A N C I A', { size: 20, ls: 6 }) +
@@ -210,7 +212,7 @@ const plates = [
       City(-0.38, 39.47, 'Valencia', { dx: -5, anchor: 'end' }) + City(1.25, 41.12, 'Tarragona', { dx: -5, anchor: 'end' }) +
       City(-3.7, 40.42, 'Madrid', { dy: -5 }) + City(-9.14, 38.72, 'Lisboa', { dx: -5, anchor: 'end' }) + City(-5.98, 37.39, 'Sevilla', { dx: -5, anchor: 'end' }) +
       City(-4.42, 36.72, 'Málaga', { dy: -5 }) + City(5.37, 43.3, 'Marsella', { dy: -5 }) + City(-0.99, 37.6, 'Cartagena', { dx: -5, anchor: 'end' }) +
-      City(3.06, 36.75, 'Argel', { dy: 11 }) + City(-0.88, 41.65, 'Zaragoza', { dx: -5, anchor: 'end' }),
+      City(3.06, 36.75, 'Argel', { dy: 11 }) + City(2.35, 48.86, 'París', { dx: 6 }) + City(-0.13, 51.5, 'Londres', { dx: 6 }) + T(-2.2, 53.4, 'INGLATERRA', { size: 13, ls: 4 }) + City(-0.88, 41.65, 'Zaragoza', { dx: -5, anchor: 'end' }),
   }),
 ];
 
